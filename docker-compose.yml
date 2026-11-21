@@ -1,0 +1,55 @@
+name: hemope-id
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: hemope-id-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hemope
+      POSTGRES_PASSWORD: hemope_dev
+      POSTGRES_DB: hemope_id
+    volumes:
+      - hemope_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hemope -d hemope_id"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hemope-id-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://hemope:hemope_dev@db:5432/hemope_id?schema=public
+      JWT_SECRET: hemope-id-chave-local-desenvolvimento
+      PORT: 3333
+      FRONTEND_URL: http://localhost:5173
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-Hemope ID <nao-responda@example.com>}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3333:3333"
+    command: sh -c "npx prisma db push && npx tsx prisma/seed.ts && npm run dev"
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hemope-id-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+
+volumes:
+  hemope_data:

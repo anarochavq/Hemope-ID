@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ATENDENTE
+  SAUDE
+}
+
+enum QueueStatus {
+  WAITING
+  CALLED
+  IN_PROGRESS
+  DONE
+  CANCELED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+model Donor {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  cpf       String?  @unique
+  phone     String?
+  email     String?
+  nfcToken  String?  @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  visits    Visit[]
+  donations Donation[]
+}
+
+model Visit {
+  id           String      @id @default(cuid())
+  donorId      String
+  donor        Donor       @relation(fields: [donorId], references: [id])
+  ticketNumber Int
+  ticketDate   String
+  shiftId      String?
+  shift        Shift?       @relation(fields: [shiftId], references: [id])
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  status       QueueStatus @default(WAITING)
+  identificationMethod String @default("MANUAL")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([shiftId, ticketNumber])
+  // A alocação de senhas é serializada por bloqueio transacional na API.
+  // Não criar UNIQUE automaticamente sobre dados legados via db push.
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model Shift {
+  id String @id @default(cuid())
+  openedAt DateTime @default(now())
+  closedAt DateTime?
+  openedById String
+  closedById String?
+  completedCount Int @default(0)
+  visits Visit[]
+}
+
+model Donation {
+  id String @id @default(cuid())
+  donorId String
+  donor Donor @relation(fields: [donorId], references: [id])
+  date DateTime @db.Date
+  createdAt DateTime @default(now())
+  createdById String
+  @@unique([donorId, date])
+  @@index([donorId, date])
+}
